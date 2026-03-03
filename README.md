@@ -1,5 +1,8 @@
 # 📓 DebugDiary
 
+<img width="1882" height="928" alt="Screenshot 2026-03-03 114451" src="https://github.com/user-attachments/assets/eb3eab1b-6232-472b-aebe-9f2d8603beb2" />
+
+
 > Turn your bugs into lessons. Powered by Google Gemini.
 
 DebugDiary is a full-stack web app that transforms your broken code into **personal diary entries** — revealing the root cause, the fix, the deeper lesson, and your recurring patterns as a developer.
