@@ -3,13 +3,24 @@
 const path = require("path");
 const fs = require("fs");
 
-const DIARY_BLOB_PATH = "debugdiary/diary.json";
+const BLOB_PREFIX = "debugdiary";
 
-async function readDiary() {
+function blobPath(userId) {
+  return `${BLOB_PREFIX}/${sanitizeUserId(userId)}/diary.json`;
+}
+
+function sanitizeUserId(userId) {
+  if (!userId || typeof userId !== "string") return "anonymous";
+  return userId.replace(/[^a-zA-Z0-9-_]/g, "").slice(0, 64) || "anonymous";
+}
+
+async function readDiary(userId) {
+  const uid = sanitizeUserId(userId);
   if (process.env.VERCEL && process.env.BLOB_READ_WRITE_TOKEN) {
     const { get, put } = require("@vercel/blob");
+    const pathname = blobPath(uid);
     try {
-      const result = await get(DIARY_BLOB_PATH, { access: "private" });
+      const result = await get(pathname, { access: "private" });
       if (!result || result.statusCode === 404) return { entries: [] };
       const stream = result.stream || (result.blob && result.blob.stream && result.blob.stream());
       if (!stream) return { entries: [] };
@@ -24,13 +35,15 @@ async function readDiary() {
   }
   const dbPath = path.join(__dirname, "diary.json");
   if (!fs.existsSync(dbPath)) return { entries: [] };
-  return JSON.parse(fs.readFileSync(dbPath, "utf-8"));
+  const all = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
+  return all.users && all.users[uid] ? all.users[uid] : { entries: [] };
 }
 
-async function writeDiary(data) {
+async function writeDiary(userId, data) {
+  const uid = sanitizeUserId(userId);
   if (process.env.VERCEL && process.env.BLOB_READ_WRITE_TOKEN) {
     const { put } = require("@vercel/blob");
-    await put(DIARY_BLOB_PATH, JSON.stringify(data, null, 2), {
+    await put(blobPath(uid), JSON.stringify(data, null, 2), {
       access: "private",
       contentType: "application/json",
       addRandomSuffix: false,
@@ -39,7 +52,13 @@ async function writeDiary(data) {
     return;
   }
   const dbPath = path.join(__dirname, "diary.json");
-  fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
+  let all = { users: {} };
+  if (fs.existsSync(dbPath)) {
+    all = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
+    if (!all.users) all.users = {};
+  }
+  all.users[uid] = data;
+  fs.writeFileSync(dbPath, JSON.stringify(all, null, 2));
 }
 
 module.exports = { readDiary, writeDiary };

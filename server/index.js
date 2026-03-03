@@ -14,6 +14,19 @@ app.use(express.json());
 
 const { readDiary, writeDiary } = require("./store");
 
+function getUserId(req) {
+  return req.headers["x-diary-user-id"] || null;
+}
+
+function requireUserId(req, res, next) {
+  const userId = getUserId(req);
+  if (!userId || userId.trim() === "") {
+    return res.status(400).json({ error: "Missing X-Diary-User-Id header. Reload the page." });
+  }
+  req.diaryUserId = userId;
+  next();
+}
+
 const API_KEY = process.env.GEMINI_API_KEY;
 if (!API_KEY) {
   console.warn("WARNING: GEMINI_API_KEY is not set. Set it in server/.env to use Analyse & write entry.");
@@ -21,7 +34,7 @@ if (!API_KEY) {
 if (!process.env.VERCEL) {
   const DB_PATH = path.join(__dirname, "diary.json");
   if (!fs.existsSync(DB_PATH)) {
-    fs.writeFileSync(DB_PATH, JSON.stringify({ entries: [] }, null, 2));
+    fs.writeFileSync(DB_PATH, JSON.stringify({ users: {} }, null, 2));
   }
 }
 
@@ -165,13 +178,13 @@ function fixLiteralNewlinesInJsonStrings(str) {
   return out;
 }
 
-app.get("/api/entries", async (req, res) => {
-  const diary = await readDiary();
+app.get("/api/entries", requireUserId, async (req, res) => {
+  const diary = await readDiary(req.diaryUserId);
   res.json(diary.entries);
 });
 
-app.get("/api/stats", async (req, res) => {
-  const diary = await readDiary();
+app.get("/api/stats", requireUserId, async (req, res) => {
+  const diary = await readDiary(req.diaryUserId);
   const entries = diary.entries;
   const tagCounts = {};
   entries.forEach((e) => {
@@ -208,7 +221,7 @@ function computeStreak(entries) {
   return streak;
 }
 
-app.post("/api/entries", async (req, res) => {
+app.post("/api/entries", requireUserId, async (req, res) => {
   const { code, description, language } = req.body;
   if (!code || !description) {
     return res.status(400).json({ error: "code and description are required" });
@@ -267,9 +280,9 @@ Reply with only the JSON object, nothing else.`;
       ...parsed,
     };
 
-    const diary = await readDiary();
+    const diary = await readDiary(req.diaryUserId);
     diary.entries.unshift(entry);
-    await writeDiary(diary);
+    await writeDiary(req.diaryUserId, diary);
     res.json(entry);
   } catch (err) {
     console.error("Error:", err.message);
@@ -277,10 +290,10 @@ Reply with only the JSON object, nothing else.`;
   }
 });
 
-app.delete("/api/entries/:id", async (req, res) => {
-  const diary = await readDiary();
+app.delete("/api/entries/:id", requireUserId, async (req, res) => {
+  const diary = await readDiary(req.diaryUserId);
   diary.entries = diary.entries.filter((e) => e.id !== req.params.id);
-  await writeDiary(diary);
+  await writeDiary(req.diaryUserId, diary);
   res.json({ success: true });
 });
 
