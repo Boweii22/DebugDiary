@@ -6,7 +6,10 @@ import App from './App'
 import { getOrCreateUserId } from './lib/diaryUser'
 import './index.css'
 
-axios.defaults.headers.common["X-Diary-User-Id"] = getOrCreateUserId()
+axios.interceptors.request.use((config) => {
+  config.headers["X-Diary-User-Id"] = getOrCreateUserId()
+  return config
+})
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
