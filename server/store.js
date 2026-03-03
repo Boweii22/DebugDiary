@@ -9,9 +9,9 @@ async function readDiary() {
   if (process.env.VERCEL && process.env.BLOB_READ_WRITE_TOKEN) {
     const { get, put } = require("@vercel/blob");
     try {
-      const blob = await get({ pathname: DIARY_BLOB_PATH, access: "private" });
-      if (!blob) return { entries: [] };
-      const stream = blob.stream && blob.stream();
+      const result = await get({ urlOrPathname: DIARY_BLOB_PATH, access: "private" });
+      if (!result || result.statusCode === 404) return { entries: [] };
+      const stream = result.stream || (result.blob && result.blob.stream && result.blob.stream());
       if (!stream) return { entries: [] };
       const chunks = [];
       for await (const chunk of stream) chunks.push(chunk);
@@ -30,7 +30,9 @@ async function readDiary() {
 async function writeDiary(data) {
   if (process.env.VERCEL && process.env.BLOB_READ_WRITE_TOKEN) {
     const { put } = require("@vercel/blob");
-    await put(DIARY_BLOB_PATH, JSON.stringify(data, null, 2), {
+    await put({
+      pathname: DIARY_BLOB_PATH,
+      body: JSON.stringify(data, null, 2),
       access: "private",
       contentType: "application/json",
       addRandomSuffix: false,
